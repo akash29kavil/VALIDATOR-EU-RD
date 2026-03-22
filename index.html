@@ -1,0 +1,1559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>NIQ · Market Data Validator</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --blue:#1B6FEB;--bdk:#0A3FA0;--blt:#4A90F5;--bglow:rgba(27,111,235,.5);
+  --cyan:#00D4FF;--gray:#6B7FA3;--ok:#00C88C;--err:#FF4060;--warn:#FFB800;--bg:#020C1E;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:#fff;min-height:100vh;overflow-x:hidden;cursor:none}
+/* ── PROFESSIONAL CURSOR SYSTEM ── */
+#trail{position:fixed;inset:0;z-index:9990;pointer-events:none}
+/* Main cursor wrapper */
+#csw{position:fixed;top:0;left:0;z-index:9999;pointer-events:none;transform:translate(-50%,-50%);will-change:transform}
+#csvg{overflow:visible;width:44px;height:44px;transition:transform .18s cubic-bezier(.34,1.56,.64,1)}
+/* Outer magnetic ring — follows with lag */
+#cring{position:fixed;top:0;left:0;z-index:9988;pointer-events:none;
+  width:36px;height:36px;border-radius:50%;
+  border:1.5px solid rgba(27,111,235,.35);
+  transform:translate(-50%,-50%);
+  transition:width .25s ease,height .25s ease,border-color .25s ease,opacity .25s ease;
+  will-change:transform;}
+#cring.hov{width:52px;height:52px;border-color:rgba(27,111,235,.65);}
+/* Click ripple */
+.cripple{position:fixed;z-index:9987;pointer-events:none;border-radius:50%;
+  border:1.5px solid rgba(27,111,235,.6);
+  transform:translate(-50%,-50%) scale(0);
+  animation:ripple .55s ease-out forwards;}
+@keyframes ripple{
+  0%{transform:translate(-50%,-50%) scale(0);opacity:.8}
+  100%{transform:translate(-50%,-50%) scale(2.8);opacity:0}
+}
+/* Dot trail particles */
+.spark{position:fixed;z-index:9985;pointer-events:none;border-radius:50%;
+  animation:sp .5s ease-out forwards}
+@keyframes sp{0%{opacity:.7;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(calc(-50% + var(--tx)),calc(-50% + var(--ty))) scale(0)}}
+/* BG */
+#bgc{position:fixed;inset:0;z-index:0;pointer-events:none}
+.govl{position:fixed;inset:0;z-index:1;pointer-events:none;
+  background-image:linear-gradient(rgba(27,111,235,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(27,111,235,.03) 1px,transparent 1px);
+  background-size:55px 55px;mask-image:radial-gradient(ellipse 80% 80% at 50% 50%,black,transparent)}
+.scanl{position:fixed;left:0;right:0;height:2px;z-index:2;pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(27,111,235,.3),var(--cyan),rgba(27,111,235,.3),transparent);
+  animation:scan 8s linear infinite;opacity:.28}
+@keyframes scan{0%{top:-2px}100%{top:100vh}}
+#flt{position:fixed;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+.fi{position:absolute;bottom:-70px;opacity:0;left:var(--lx);font-size:var(--fs);animation:rise var(--d) ease-in-out var(--dl) infinite}
+/* Flag floaters */
+.ff{position:absolute;bottom:-90px;opacity:0;left:var(--lx);font-size:var(--fs);
+  animation:riseflag var(--d) ease-in-out var(--dl) infinite;
+  filter:drop-shadow(0 2px 8px rgba(27,111,235,.35));}
+/* Product card floaters — pill style, graphical */
+.fp{
+  position:absolute;bottom:-80px;opacity:0;left:var(--lx);
+  display:inline-flex;align-items:center;gap:6px;
+  padding:6px 12px 6px 8px;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(27,111,235,.22);
+  border-radius:100px;
+  backdrop-filter:blur(8px);
+  font-size:.72rem;font-family:'DM Sans',sans-serif;font-weight:500;
+  color:rgba(180,210,255,.75);
+  white-space:nowrap;
+  animation:riseprod var(--d) ease-in-out var(--dl) infinite;
+  box-shadow:0 2px 14px rgba(27,111,235,.12), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.fp .pe{font-size:1rem;line-height:1}
+.fp .pl{font-size:.68rem;letter-spacing:.3px}
+/* subtle left accent line */
+.fp::before{
+  content:'';width:2px;height:60%;border-radius:2px;
+  background:linear-gradient(var(--blue),var(--cyan));
+  flex-shrink:0;opacity:.7;
+}
+@keyframes rise{
+  0%  {opacity:0;transform:translateY(0) rotate(-5deg) scale(.7)}
+  10% {opacity:.15}
+  50% {transform:translateY(-52vh) rotate(5deg) scale(1)}
+  90% {opacity:.05}
+  100%{opacity:0;transform:translateY(-108vh) rotate(-3deg)}
+}
+@keyframes riseflag{
+  0%  {opacity:0;transform:translateY(0) rotate(-4deg) scale(.75)}
+  8%  {opacity:.28}
+  40% {opacity:.22;transform:translateY(-38vh) rotate(3deg) scale(1.05)}
+  75% {opacity:.16;transform:translateY(-72vh) rotate(-2deg) scale(1)}
+  92% {opacity:.06}
+  100%{opacity:0;transform:translateY(-112vh) rotate(2deg) scale(.9)}
+}
+@keyframes riseprod{
+  0%  {opacity:0;transform:translateY(0) scale(.85)}
+  12% {opacity:.55}
+  50% {opacity:.42;transform:translateY(-45vh) scale(1)}
+  85% {opacity:.2}
+  100%{opacity:0;transform:translateY(-105vh) scale(.9)}
+}
+/* APP */
+.app{position:relative;z-index:10;min-height:100vh;display:flex;flex-direction:column}
+/* NAV */
+nav{display:flex;align-items:center;justify-content:space-between;padding:12px 32px;
+  background:rgba(2,12,30,.92);backdrop-filter:blur(20px);border-bottom:1px solid rgba(27,111,235,.16);
+  position:sticky;top:0;z-index:200}
+.nl{display:flex;align-items:center;gap:12px}
+/* ── NIQ LOGO ── */
+.logo-wrap{
+  display:flex;align-items:center;gap:0;position:relative;cursor:default;
+  padding:6px 14px 6px 10px;
+  border-radius:10px;
+  background:rgba(27,111,235,.06);
+  border:1px solid rgba(27,111,235,.18);
+  transition:all .3s ease;
+  overflow:hidden;
+}
+.logo-wrap::before{
+  content:'';
+  position:absolute;inset:0;border-radius:10px;
+  background:linear-gradient(135deg,rgba(27,111,235,.12) 0%,rgba(0,212,255,.06) 100%);
+  opacity:0;transition:opacity .3s;
+}
+.logo-wrap:hover{
+  border-color:rgba(27,111,235,.45);
+  box-shadow:0 0 0 3px rgba(27,111,235,.1), 0 8px 28px rgba(27,111,235,.25);
+  transform:translateY(-1px);
+}
+.logo-wrap:hover::before{opacity:1;}
+/* animated shimmer sweep on hover */
+.logo-wrap::after{
+  content:'';
+  position:absolute;top:0;left:-100%;width:60%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent);
+  transition:none;
+}
+.logo-wrap:hover::after{
+  animation:logoShimmer .6s ease forwards;
+}
+@keyframes logoShimmer{
+  0%{left:-60%}100%{left:160%}
+}
+/* The NIQ text itself */
+.logo{
+  font-family:'Syne',sans-serif;
+  font-size:1.85rem;font-weight:800;
+  letter-spacing:-1.5px;
+  position:relative;
+  background:linear-gradient(135deg, #1B6FEB 0%, #2E85FF 40%, #00D4FF 100%);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+  filter:drop-shadow(0 0 12px rgba(27,111,235,.55));
+  animation:logoPulse 4s ease-in-out infinite;
+}
+@keyframes logoPulse{
+  0%,100%{filter:drop-shadow(0 0 8px rgba(27,111,235,.5));}
+  50%{filter:drop-shadow(0 0 20px rgba(27,111,235,.85)) drop-shadow(0 0 40px rgba(0,212,255,.3));}
+}
+/* Blue dot after NIQ */
+.logo-dot{
+  width:7px;height:7px;border-radius:50%;
+  background:var(--cyan);
+  box-shadow:0 0 8px var(--cyan), 0 0 18px rgba(0,212,255,.6);
+  margin-left:2px;margin-bottom:14px;flex-shrink:0;
+  animation:dotBlink 2s ease-in-out infinite;
+}
+@keyframes dotBlink{
+  0%,100%{opacity:1;transform:scale(1);}
+  50%{opacity:.5;transform:scale(.7);}
+}
+.nsep{width:1px;height:26px;background:rgba(107,127,163,.28)}
+.ntxt{font-size:.62rem;color:var(--gray);text-transform:uppercase;letter-spacing:1.8px;line-height:1.5}
+.ntxt b{display:block;color:#8AADFF;font-size:.67rem;font-weight:600}
+.nc{display:flex;gap:4px;flex-wrap:wrap}
+.nch{padding:4px 8px;border-radius:6px;font-size:.68rem;background:rgba(27,111,235,.07);
+  border:1px solid rgba(27,111,235,.13);color:var(--gray);cursor:default;transition:all .2s}
+.nch:hover{background:rgba(27,111,235,.15);color:#fff}
+.nbadge{display:flex;align-items:center;gap:6px;background:rgba(0,200,140,.1);
+  border:1px solid rgba(0,200,140,.25);padding:5px 12px;border-radius:100px;font-size:.68rem;color:var(--ok)}
+/* TICKER */
+.tkw{overflow:hidden;padding:7px 0;background:rgba(27,111,235,.04);border-bottom:1px solid rgba(27,111,235,.09)}
+.tki{display:flex;white-space:nowrap;animation:tick 30s linear infinite}
+.ti{display:inline-flex;align-items:center;gap:6px;padding:0 22px;font-size:.68rem;color:var(--gray);border-right:1px solid rgba(27,111,235,.09)}
+.ti b{color:var(--blt)}.up{color:var(--ok)}.dn{color:var(--err)}
+@keyframes tick{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+/* HERO */
+.hero{text-align:center;padding:32px 18px 16px}
+.hbadge{display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,rgba(27,111,235,.11),rgba(0,212,255,.06));
+  border:1px solid rgba(0,212,255,.16);padding:4px 14px;border-radius:100px;
+  font-size:.64rem;color:var(--cyan);text-transform:uppercase;letter-spacing:1.8px;margin-bottom:12px}
+.hero h1{font-family:'Syne',sans-serif;font-size:clamp(1.5rem,3.4vw,2.8rem);font-weight:800;line-height:1.13;margin-bottom:9px}
+.hero h1 .g{background:linear-gradient(135deg,#fff,var(--blt) 40%,var(--cyan) 85%);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:var(--gray);font-size:.87rem;max-width:480px;margin:0 auto 14px;line-height:1.72}
+.frow{display:flex;align-items:center;justify-content:center;gap:5px;flex-wrap:wrap;margin-bottom:14px}
+.ef{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);
+  padding:3px 8px;border-radius:5px;font-size:.68rem;color:#8AADFF;cursor:default;transition:all .18s}
+.ef:hover{background:rgba(27,111,235,.11);border-color:rgba(27,111,235,.26);transform:translateY(-1px)}
+/* MAIN PANEL */
+.mp{display:grid;grid-template-columns:320px 1fr;flex:1;margin:10px 18px 24px;
+  border-radius:14px;overflow:hidden;border:1px solid rgba(27,111,235,.15);
+  background:rgba(255,255,255,.018);backdrop-filter:blur(14px);
+  box-shadow:0 28px 70px rgba(0,0,0,.58),inset 0 1px 0 rgba(255,255,255,.035)}
+/* SIDEBAR */
+.sb{background:rgba(27,111,235,.035);border-right:1px solid rgba(27,111,235,.09);
+  padding:16px 14px;display:flex;flex-direction:column;gap:13px;
+  overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(27,111,235,.16) transparent}
+.stl{font-family:'Syne',sans-serif;font-size:.63rem;font-weight:700;color:var(--cyan);
+  text-transform:uppercase;letter-spacing:2px;display:flex;align-items:center;gap:6px}
+.stl::before{content:'';width:3px;height:11px;background:linear-gradient(var(--blue),var(--cyan));border-radius:2px}
+.flbl{font-size:.63rem;color:var(--gray);margin-bottom:4px;text-transform:uppercase;letter-spacing:.9px}
+/* UPLOAD ZONES */
+.uz{border:1.5px dashed rgba(27,111,235,.28);border-radius:10px;background:rgba(27,111,235,.02);transition:all .2s;position:relative;overflow:hidden}
+.uz:hover,.uz.drag{border-color:var(--cyan);background:rgba(0,212,255,.04);box-shadow:0 4px 16px rgba(0,212,255,.07)}
+.uz label{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:13px 10px;cursor:pointer;width:100%;text-align:center}
+.uz input[type=file]{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;z-index:5}
+.uico{font-size:1.3rem;margin-bottom:3px}
+.utxt{font-size:.71rem;color:var(--gray);line-height:1.5}
+.utxt strong{color:var(--cyan)}.utxt small{display:block;font-size:.61rem;margin-top:1px;opacity:.7}
+.ubtn{display:flex;align-items:center;justify-content:center;gap:5px;width:100%;padding:7px;margin-top:4px;
+  background:rgba(27,111,235,.08);border:1px solid rgba(27,111,235,.2);border-radius:7px;
+  color:var(--blt);font-size:.71rem;font-weight:600;cursor:pointer;transition:all .18s;font-family:'DM Sans',sans-serif}
+.ubtn:hover{background:rgba(27,111,235,.17);color:#fff}
+.fbadge{display:flex;align-items:center;gap:6px;background:rgba(0,200,140,.07);
+  border:1px solid rgba(0,200,140,.16);border-radius:7px;padding:6px 8px;margin-top:4px}
+.fbadge .fn{color:#fff;font-weight:500;flex:1;font-size:.68rem;word-break:break-all}
+.fbadge .fs{color:var(--ok);font-size:.62rem;white-space:nowrap}
+/* TEXTAREA */
+.ibox{background:rgba(255,255,255,.02);border:1px solid rgba(27,111,235,.1);border-radius:9px;padding:8px}
+.ibox textarea{width:100%;background:transparent;border:none;outline:none;color:#BCD0FF;
+  font-family:'DM Sans',sans-serif;font-size:.72rem;line-height:1.6;resize:vertical;min-height:80px}
+.ibox textarea::placeholder{color:rgba(107,127,163,.42)}
+/* TOGGLES */
+.togr{display:flex;justify-content:space-between;align-items:center;font-size:.71rem;color:var(--gray)}
+.tog{width:34px;height:19px;border-radius:10px;background:rgba(27,111,235,.09);
+  border:1px solid rgba(27,111,235,.18);position:relative;cursor:pointer;transition:all .2s;flex-shrink:0}
+.tog.on{background:linear-gradient(135deg,var(--blue),var(--bdk));border-color:var(--blue);box-shadow:0 0 7px rgba(27,111,235,.28)}
+.tog::after{content:'';position:absolute;top:2px;left:2px;width:13px;height:13px;
+  border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.22)}
+.tog.on::after{transform:translateX(15px)}
+/* RUN BUTTON */
+.btnrun{width:100%;padding:13px;border:none;border-radius:10px;
+  background:linear-gradient(135deg,var(--blue),var(--bdk));color:#fff;
+  font-family:'Syne',sans-serif;font-size:.86rem;font-weight:800;cursor:pointer;
+  position:relative;overflow:hidden;letter-spacing:.4px;
+  box-shadow:0 5px 18px rgba(27,111,235,.36);transition:all .2s;
+  display:flex;align-items:center;justify-content:center;gap:7px}
+.btnrun:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 10px 26px rgba(27,111,235,.48)}
+.btnrun:disabled{opacity:.35;cursor:not-allowed;transform:none!important}
+.shim{position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.17),transparent);transform:translateX(-100%);animation:shim 3s infinite}
+@keyframes shim{100%{transform:translateX(250%)}}
+/* RIGHT PANEL */
+.rp{display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.main-view{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:10px;
+  scrollbar-width:thin;scrollbar-color:rgba(27,111,235,.16) transparent;min-height:0}
+.main-view::-webkit-scrollbar{width:4px}.main-view::-webkit-scrollbar-thumb{background:rgba(27,111,235,.18);border-radius:2px}
+/* WELCOME */
+.wlc{margin:auto;text-align:center;padding:22px 14px}
+.wi{font-size:2.8rem;margin-bottom:11px;filter:drop-shadow(0 0 16px var(--bglow));animation:bob 3s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.wlc h2{font-family:'Syne',sans-serif;font-size:1.18rem;font-weight:700;margin-bottom:7px}
+.wlc p{color:var(--gray);font-size:.78rem;line-height:1.7;max-width:340px;margin:0 auto}
+.sgrid{display:flex;gap:6px;margin-top:16px;justify-content:center;flex-wrap:wrap}
+.sc{background:rgba(27,111,235,.055);border:1px solid rgba(27,111,235,.13);border-radius:9px;
+  padding:10px;width:108px;text-align:left;transition:all .18s;cursor:default}
+.sc:hover{background:rgba(27,111,235,.11);transform:translateY(-2px)}
+.sn{font-family:'Syne',sans-serif;font-size:.88rem;font-weight:800;color:var(--blue);margin-bottom:2px}
+.sl{color:#fff;font-size:.7rem;font-weight:600;margin-bottom:1px}.sd{color:var(--gray);font-size:.62rem}
+/* SYSTEM MESSAGES */
+.sysmsg{background:rgba(27,111,235,.05);border:1px solid rgba(27,111,235,.11);
+  border-radius:8px;padding:7px 11px;font-size:.72rem;color:#8AADFF;animation:mi .25s ease both}
+.errmsg{background:rgba(255,64,96,.06);border:1px solid rgba(255,64,96,.18);
+  border-radius:8px;padding:7px 11px;font-size:.72rem;color:var(--err);animation:mi .25s ease both}
+@keyframes mi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* PROGRESS */
+.pw{background:rgba(27,111,235,.055);border:1px solid rgba(27,111,235,.13);border-radius:10px;padding:13px 15px;animation:mi .25s ease both}
+.pt{font-size:.72rem;color:var(--cyan);margin-bottom:6px;font-weight:600;display:flex;align-items:center;gap:5px}
+.rc{margin-left:auto;font-size:.63rem;color:var(--gray);font-weight:400}
+.ptrk{background:rgba(255,255,255,.04);border-radius:100px;height:5px;overflow:hidden}
+.pfill{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--blue),var(--cyan));transition:width .3s ease;box-shadow:0 0 7px var(--cyan)}
+.psteps{display:flex;gap:4px;margin-top:7px;flex-wrap:wrap}
+.ps{font-size:.62rem;padding:2px 7px;border-radius:100px;background:rgba(27,111,235,.06);border:1px solid rgba(27,111,235,.11);color:var(--gray);transition:all .28s}
+.ps.act{background:rgba(0,212,255,.08);border-color:var(--cyan);color:var(--cyan)}
+.ps.done{background:rgba(0,200,140,.07);border-color:var(--ok);color:var(--ok)}
+/* RESULTS */
+.rw{animation:mi .25s ease both}
+.rsums{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:11px}
+.rsc{border-radius:9px;padding:10px;text-align:center;border:1px solid}
+.rsc.tot{background:rgba(27,111,235,.07);border-color:rgba(27,111,235,.18)}
+.rsc.ok{background:rgba(0,200,140,.06);border-color:rgba(0,200,140,.17)}
+.rsc.er{background:rgba(255,64,96,.06);border-color:rgba(255,64,96,.17)}
+.rsn{font-family:'Syne',sans-serif;font-size:1.45rem;font-weight:800;line-height:1}
+.rsc.tot .rsn{color:var(--blt)}.rsc.ok .rsn{color:var(--ok)}.rsc.er .rsn{color:var(--err)}
+.rsl{font-size:.63rem;color:var(--gray);margin-top:2px;text-transform:uppercase;letter-spacing:.7px}
+/* ERROR LIST */
+.ebd{background:rgba(255,64,96,.04);border:1px solid rgba(255,64,96,.12);border-radius:9px;padding:10px 12px;margin-bottom:10px}
+.ebt{font-size:.68rem;color:var(--err);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.ebi{display:flex;align-items:flex-start;gap:7px;font-size:.7rem;color:#FFB0B8;padding:4px 0;border-bottom:1px solid rgba(255,64,96,.07)}
+.ebi:last-child{border-bottom:none}
+.ebr{color:var(--err);font-weight:700;min-width:44px;flex-shrink:0;font-size:.68rem}
+.ebd2{flex:1;line-height:1.5}.ebf{color:var(--warn);font-weight:600}
+.ebfx{color:var(--ok);font-size:.65rem;margin-top:1px}
+.detbtn{background:rgba(27,111,235,.12);border:1px solid rgba(27,111,235,.25);color:var(--blt);
+  font-size:.61rem;padding:2px 7px;border-radius:5px;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .15s}
+.detbtn:hover{background:rgba(27,111,235,.23);color:#fff}
+/* TABLE */
+.tscr{overflow-x:auto;border-radius:8px;max-height:240px;overflow-y:auto;
+  scrollbar-width:thin;scrollbar-color:rgba(27,111,235,.15) transparent;margin-bottom:10px}
+table{width:100%;border-collapse:collapse;font-size:.69rem}
+thead th{background:rgba(27,111,235,.11);color:var(--blt);padding:6px 8px;text-align:left;
+  font-weight:600;font-size:.59rem;text-transform:uppercase;letter-spacing:.8px;
+  position:sticky;top:0;white-space:nowrap;border-bottom:1px solid rgba(27,111,235,.13)}
+tbody tr{border-bottom:1px solid rgba(255,255,255,.02);transition:background .12s;cursor:pointer}
+tbody tr:hover{background:rgba(27,111,235,.05)}
+tbody tr.erow{background:rgba(255,64,96,.033)}
+tbody tr.erow:hover{background:rgba(255,64,96,.065)}
+tbody td{padding:5px 8px;color:#B0C8F8;max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+.bdg{display:inline-flex;align-items:center;gap:2px;padding:2px 6px;border-radius:100px;font-size:.61rem;font-weight:700;white-space:nowrap}
+.bdg.ok{background:rgba(0,200,140,.1);color:var(--ok);border:1px solid rgba(0,200,140,.2)}
+.bdg.er{background:rgba(255,64,96,.1);color:var(--err);border:1px solid rgba(255,64,96,.2)}
+/* DOWNLOAD */
+.btndl{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:7px;
+  background:linear-gradient(135deg,#00C88C,#007A5A);border:none;color:#fff;
+  font-family:'Syne',sans-serif;font-size:.74rem;font-weight:700;cursor:pointer;
+  box-shadow:0 3px 10px rgba(0,200,140,.2);transition:all .18s}
+.btndl:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(0,200,140,.32)}
+.btndl.blue{background:linear-gradient(135deg,var(--blue),var(--bdk));box-shadow:0 3px 10px rgba(27,111,235,.22)}
+.btndl.blue:hover{box-shadow:0 6px 16px rgba(27,111,235,.4)}
+.btndl.gray{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);box-shadow:none;color:#aaa}
+.btndl.gray:hover{background:rgba(255,255,255,.1);color:#fff}
+/* MODAL */
+.mbg{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:500;
+  display:flex;align-items:center;justify-content:center;padding:16px;animation:mi .18s ease both}
+.modal{background:#071525;border:1px solid rgba(27,111,235,.26);border-radius:13px;
+  padding:18px;max-width:540px;width:100%;max-height:82vh;overflow-y:auto;
+  box-shadow:0 36px 80px rgba(0,0,0,.8);scrollbar-width:thin;scrollbar-color:rgba(27,111,235,.16) transparent}
+.mhdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.mtitle{font-family:'Syne',sans-serif;font-size:.88rem;font-weight:700}
+.mclose{width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.07);border:none;
+  color:#aaa;cursor:pointer;font-size:.9rem;display:flex;align-items:center;justify-content:center;transition:all .18s}
+.mclose:hover{background:rgba(255,64,96,.2);color:var(--err)}
+.fchk{border-radius:8px;padding:8px 10px;margin-bottom:6px;border:1px solid}
+.fchk.ok{background:rgba(0,200,140,.05);border-color:rgba(0,200,140,.15)}
+.fchk.er{background:rgba(255,64,96,.05);border-color:rgba(255,64,96,.15)}
+.fch{display:flex;justify-content:space-between;align-items:center;margin-bottom:2px}
+.fcn{font-weight:600;font-size:.76rem;color:#fff}
+.fcv{font-size:.68rem;color:var(--gray);font-style:italic;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fcr{font-size:.67rem;color:var(--gray);margin-bottom:2px;line-height:1.5}
+.fce{font-size:.68rem;color:var(--err);margin-top:2px;line-height:1.5}
+.fcf{font-size:.67rem;color:var(--ok);margin-top:1px}
+@media(max-width:820px){.mp{grid-template-columns:1fr}.sb{border-right:none;border-bottom:1px solid rgba(27,111,235,.09)}nav{padding:10px 14px}.nc{display:none}}
+</style>
+</head>
+<body>
+<!-- CURSOR -->
+<canvas id="trail"></canvas>
+<div id="cring"></div>
+<div id="csw">
+<svg id="csvg" viewBox="-28 -28 56 56">
+  <!-- outer dashed ring — rotates -->
+  <circle id="co" cx="0" cy="0" r="22" fill="none" stroke="rgba(0,212,255,.42)" stroke-width="1" stroke-dasharray="5 3.5"/>
+  <!-- inner ring -->
+  <circle id="cm" cx="0" cy="0" r="14" fill="none" stroke="rgba(27,111,235,.55)" stroke-width="1" stroke-dasharray="3 4"/>
+  <!-- centre fill -->
+  <circle cx="0" cy="0" r="4.5" fill="rgba(0,212,255,.1)" stroke="rgba(0,212,255,.55)" stroke-width=".8"/>
+  <!-- centre dot -->
+  <circle cx="0" cy="0" r="1.8" fill="#fff"/>
+  <!-- crosshair arms -->
+  <line x1="-27" y1="0" x2="-17" y2="0" stroke="rgba(0,212,255,.45)" stroke-width=".9"/>
+  <line x1="17"  y1="0" x2="27"  y2="0" stroke="rgba(0,212,255,.45)" stroke-width=".9"/>
+  <line x1="0" y1="-27" x2="0" y2="-17" stroke="rgba(0,212,255,.45)" stroke-width=".9"/>
+  <line x1="0" y1="17"  x2="0"  y2="27" stroke="rgba(0,212,255,.45)" stroke-width=".9"/>
+  <!-- corner brackets -->
+  <path d="M-24,-17 L-17,-17 L-17,-24" fill="none" stroke="rgba(27,111,235,.7)" stroke-width="1.3" stroke-linecap="round"/>
+  <path d="M24,-17 L17,-17 L17,-24"    fill="none" stroke="rgba(27,111,235,.7)" stroke-width="1.3" stroke-linecap="round"/>
+  <path d="M-24,17 L-17,17 L-17,24"    fill="none" stroke="rgba(27,111,235,.7)" stroke-width="1.3" stroke-linecap="round"/>
+  <path d="M24,17 L17,17 L17,24"       fill="none" stroke="rgba(27,111,235,.7)" stroke-width="1.3" stroke-linecap="round"/>
+  <!-- orbiting dot -->
+  <circle id="orb" cx="14" cy="0" r="1.8" fill="#00D4FF"/>
+</svg>
+</div>
+<canvas id="bgc"></canvas>
+<div class="govl"></div><div class="scanl"></div>
+<div id="flt"></div>
+
+<div class="app">
+<nav>
+  <div class="nl">
+    <div class="logo-wrap">
+      <div class="logo">NIQ</div>
+      <div class="logo-dot"></div>
+    </div>
+    <div class="nsep"></div>
+    <div class="ntxt"><b>Market Intelligence</b>European Data Platform</div>
+  </div>
+  <div class="nc">
+    <div class="nch">🇬🇧 UK</div><div class="nch">🇮🇪 Ireland</div>
+    <div class="nch">🇫🇷 France</div><div class="nch">🇮🇹 Italy</div>
+    <div class="nch">🇩🇪 Germany</div><div class="nch">🇪🇸 Spain</div>
+  </div>
+  <div class="nbadge">✅ No API · Works Offline</div>
+</nav>
+<div class="tkw"><div class="tki" id="ticker"></div></div>
+<div class="hero">
+  <div class="hbadge">🌍 Pan-European · FMCG · Rule-Based Validation</div>
+  <h1>Validate <span class="g">Market Data</span><br/>Against Your Instructions</h1>
+  <p>Upload your data file + instruction file. The engine reads every row, checks each column against your rules using the Item Description as reference, and gives you a full annotated output.</p>
+  <div class="frow">
+    <div class="ef">🇬🇧 United Kingdom</div><div class="ef">🇮🇪 Ireland</div>
+    <div class="ef">🇫🇷 France</div><div class="ef">🇮🇹 Italy</div>
+    <div class="ef">🇩🇪 Germany</div><div class="ef">🇪🇸 Spain</div>
+    <div class="ef">🇳🇱 Netherlands</div><div class="ef">🇧🇪 Belgium</div>
+  </div>
+</div>
+
+<div class="mp">
+<!-- SIDEBAR -->
+<div class="sb">
+  <div class="stl">Upload Files</div>
+  <!-- DATA FILE -->
+  <div>
+    <div class="flbl">📊 Data File (.xlsx / .csv)</div>
+    <input type="file" id="df" accept=".xlsx,.xls,.csv" style="display:none" onchange="loadData(this)"/>
+    <div class="uz" id="dz" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="dropF(event,'df')">
+      <label for="df"><div class="uico">📂</div><div class="utxt"><strong>Click or drag</strong> your data file<small>.xlsx · .xls · .csv</small></div></label>
+    </div>
+    <button class="ubtn" onclick="document.getElementById('df').click()">📁 Browse Data File</button>
+    <div id="dbadge" style="display:none" class="fbadge">✅ <span class="fn" id="dfn"></span><span class="fs" id="dfs"></span></div>
+  </div>
+  <!-- INSTRUCTION FILE -->
+  <div>
+    <div class="flbl">📋 Instruction File (.xlsx / .txt)</div>
+    <div style="font-size:.62rem;color:rgba(107,127,163,.7);margin-bottom:4px;line-height:1.5">
+      Each row = one rule. Format: <strong style="color:var(--cyan)">ColumnName | rule description</strong>
+    </div>
+    <input type="file" id="inf" accept=".xlsx,.xls,.txt" style="display:none" onchange="loadInst(this)"/>
+    <div class="uz" id="iz" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="dropF(event,'inf')">
+      <label for="inf"><div class="uico">📄</div><div class="utxt"><strong>Click or drag</strong> instruction file<small>.xlsx · .xls · .txt</small></div></label>
+    </div>
+    <button class="ubtn" onclick="document.getElementById('inf').click()">📋 Browse Instructions</button>
+    <div id="ibadge" style="display:none" class="fbadge">✅ <span class="fn" id="ifn"></span><span class="fs" id="ifs"></span></div>
+  </div>
+  <!-- ITEM DESC FIELD -->
+  <div>
+    <div class="flbl">🏷️ Item Description Column Name</div>
+    <input type="text" id="descfield" value="Item Description"
+      style="width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(27,111,235,.2);border-radius:7px;padding:8px 11px;color:#fff;font-size:.75rem;outline:none;font-family:'DM Sans',sans-serif"
+      placeholder="e.g. Item Description"
+      onfocus="this.style.borderColor='var(--cyan)'"
+      onblur="this.style.borderColor='rgba(27,111,235,.2)'"/>
+    <div style="font-size:.62rem;color:rgba(107,127,163,.65);margin-top:3px">Column in your data that has the full product description</div>
+  </div>
+  <!-- EXTRA RULES -->
+  <div>
+    <div class="flbl">✍️ Extra Rules (optional, same format)</div>
+    <div class="ibox">
+      <textarea id="extrarules" placeholder="e.g.&#10;Weight | must contain unit like 200g&#10;Flavour | must be one of: Original, Mint, Berry&#10;Brand | must not be empty"></textarea>
+    </div>
+  </div>
+  <!-- OPTIONS -->
+  <div style="display:flex;flex-direction:column;gap:7px">
+    <div class="stl">Options</div>
+    <div class="togr"><span>🔍 Strict Mode</span><div class="tog on" id="tstrict" onclick="this.classList.toggle('on')"></div></div>
+    <div class="togr"><span>📝 Use Item Description as reference</span><div class="tog on" id="tdesc" onclick="this.classList.toggle('on')"></div></div>
+    <!-- Empty fields are never flagged as errors (by design) -->
+  </div>
+  <button class="btnrun" id="runbtn" onclick="runVal()">
+    <div class="shim"></div>⚡ Run Validation
+  </button>
+</div>
+
+<!-- RIGHT PANEL -->
+<div class="rp">
+  <div class="main-view" id="mainview">
+    <div class="wlc" id="wlc">
+      <div class="wi">✅</div>
+      <h2>NIQ Rule-Based Validator</h2>
+      <p><strong style="color:var(--cyan)">No API · No Internet · 100% Free</strong><br/>
+      Works completely offline. Upload your data + instruction file and click Run Validation.</p>
+      <div class="sgrid">
+        <div class="sc"><div class="sn">01</div><div class="sl">Upload Data</div><div class="sd">Your Excel file</div></div>
+        <div class="sc"><div class="sn">02</div><div class="sl">Upload Rules</div><div class="sd">Instruction file</div></div>
+        <div class="sc"><div class="sn">03</div><div class="sl">Validate</div><div class="sd">Instant results</div></div>
+        <div class="sc"><div class="sn">04</div><div class="sl">Download</div><div class="sd">Annotated Excel</div></div>
+      </div>
+      <div style="margin-top:18px;background:rgba(27,111,235,.07);border:1px solid rgba(27,111,235,.16);border-radius:10px;padding:12px;text-align:left;font-size:.72rem;color:#8AADFF;line-height:1.7">
+        <strong style="color:var(--cyan)">📋 Instruction File Format:</strong><br/>
+        Each row defines a rule for one column.<br/>
+        <strong>Column A:</strong> Column name (e.g. <em>Weight</em>)<br/>
+        <strong>Column B:</strong> Rule (e.g. <em>must be numeric with unit like 200g or 500ml</em>)<br/>
+        <br/>
+        <strong>Example rules:</strong><br/>
+        Weight | must contain a number followed by g, kg, ml or L<br/>
+        Brand | must not be empty<br/>
+        Flavour | must be one of: Original, Mint, Berry, Lemon<br/>
+        Country | must be a valid EU or UK country name<br/>
+        Barcode | must be 13 digits<br/>
+        Category | must not be empty
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  CURSOR — smooth original style
+// ═══════════════════════════════════════════════════════
+const csw = document.getElementById('csw');
+const co  = document.getElementById('co');
+const cm  = document.getElementById('cm');
+const orb = document.getElementById('orb');
+const cring = document.getElementById('cring');
+
+let mx=400, my=300;   // raw mouse target
+let cx=400, cy=300;   // inner cursor (fast lerp)
+let rx=400, ry=300;   // outer ring (slow lerp)
+let oa=0, hov=false, pressing=false;
+
+document.addEventListener('mousemove', e=>{ mx=e.clientX; my=e.clientY; });
+document.addEventListener('mousedown', e=>{ pressing=true; burst(e.clientX,e.clientY); });
+document.addEventListener('mouseup',   ()=>pressing=false);
+document.addEventListener('mouseover', e=>{
+  hov=!!(e.target.closest('button')||e.target.closest('a')||
+         e.target.closest('.uz')||e.target.closest('.tog')||
+         e.target.closest('.sc')||e.target.closest('label')||
+         e.target.closest('input')||e.target.closest('.logo-wrap')||
+         e.target.closest('.nch')||e.target.closest('tbody tr'));
+});
+
+(function loop(){
+  // Inner crosshair — snappy
+  cx += (mx-cx) * 0.14;
+  cy += (my-cy) * 0.14;
+  csw.style.transform = 'translate('+cx+'px,'+cy+'px)';
+
+  // Outer ring — smooth lag
+  rx += (mx-rx) * 0.07;
+  ry += (my-ry) * 0.07;
+  cring.style.transform = 'translate('+rx+'px,'+ry+'px)';
+  if(hov) cring.classList.add('hov');
+  else    cring.classList.remove('hov');
+
+  // Rotate outer dashed ring, counter-rotate inner
+  oa += hov ? 2.2 : 0.9;
+  co.setAttribute('stroke-dashoffset',  oa);
+  cm.setAttribute('stroke-dashoffset', -oa * 0.55);
+
+  // Orbiting dot
+  orb.setAttribute('cx', 14 * Math.cos(oa * Math.PI/180));
+  orb.setAttribute('cy', 14 * Math.sin(oa * Math.PI/180));
+
+  // Scale on hover / click
+  const sc = pressing ? 0.65 : hov ? 1.3 : 1;
+  document.getElementById('csvg').style.transform = 'scale('+sc+')';
+  document.getElementById('csvg').style.transition = 'transform .2s cubic-bezier(.34,1.56,.64,1)';
+
+  // Colour: gold on hover, blue default
+  if(hov){
+    co.setAttribute('stroke','rgba(255,215,0,.6)');
+    cm.setAttribute('stroke','rgba(255,215,0,.75)');
+    orb.setAttribute('fill','#FFD700');
+  } else {
+    co.setAttribute('stroke','rgba(0,212,255,.42)');
+    cm.setAttribute('stroke','rgba(27,111,235,.55)');
+    orb.setAttribute('fill','#00D4FF');
+  }
+
+  requestAnimationFrame(loop);
+})();
+
+// ── Trail canvas ─────────────────────────────────────
+const tc=document.getElementById('trail'), tctx=tc.getContext('2d');
+function rz(){ tc.width=window.innerWidth; tc.height=window.innerHeight; }
+rz(); window.addEventListener('resize',rz);
+
+const trail=[];
+document.addEventListener('mousemove', e=>{
+  trail.push({x:e.clientX, y:e.clientY, l:1, r:Math.random()*2.8+1.2});
+  if(trail.length>48) trail.shift();
+});
+
+(function tloop(){
+  tctx.clearRect(0,0,tc.width,tc.height);
+
+  // Smooth bezier curve trail
+  if(trail.length>2){
+    tctx.beginPath();
+    tctx.moveTo(trail[0].x, trail[0].y);
+    for(let i=1;i<trail.length-1;i++){
+      const mpx=(trail[i].x+trail[i+1].x)/2;
+      const mpy=(trail[i].y+trail[i+1].y)/2;
+      tctx.quadraticCurveTo(trail[i].x, trail[i].y, mpx, mpy);
+    }
+    const col = hov ? 'rgba(255,215,0,0.14)' : 'rgba(27,111,235,0.16)';
+    tctx.strokeStyle=col;
+    tctx.lineWidth=1.8;
+    tctx.lineCap='round';
+    tctx.lineJoin='round';
+    tctx.stroke();
+  }
+
+  // Fading dots
+  for(let i=trail.length-1;i>=0;i--){
+    const p=trail[i];
+    p.l -= 0.022;
+    if(p.l<=0){ trail.splice(i,1); continue; }
+    const alpha = p.l * (hov ? 0.3 : 0.22);
+    tctx.beginPath();
+    tctx.arc(p.x, p.y, p.r*p.l, 0, Math.PI*2);
+    tctx.fillStyle = hov ? 'rgba(255,215,0,'+alpha+')' : 'rgba(27,111,235,'+alpha+')';
+    tctx.fill();
+  }
+
+  requestAnimationFrame(tloop);
+})();
+
+// ── Click burst ───────────────────────────────────────
+function burst(x,y){
+  for(let i=0;i<8;i++){
+    const el=document.createElement('div'); el.className='spark';
+    const a=(i/8)*Math.PI*2, d=18+Math.random()*32, s=2+Math.random()*3;
+    el.style.cssText=
+      'left:'+x+'px;top:'+y+'px;width:'+s+'px;height:'+s+'px;'+
+      'background:'+(hov?'#FFD700':'#1B6FEB')+';'+
+      '--tx:'+(Math.cos(a)*d)+'px;--ty:'+(Math.sin(a)*d)+'px;'+
+      'box-shadow:0 0 5px '+(hov?'#FFD700':'#00D4FF');
+    document.body.appendChild(el);
+    setTimeout(()=>el.remove(),620);
+  }
+}
+// BG
+const bgc=document.getElementById('bgc'),bctx=bgc.getContext('2d');
+function rbg(){bgc.width=window.innerWidth;bgc.height=window.innerHeight}rbg();window.addEventListener('resize',rbg);
+const nodes=[];for(let i=0;i<70;i++)nodes.push({x:Math.random()*bgc.width,y:Math.random()*bgc.height,vx:(Math.random()-.5)*.25,vy:(Math.random()-.5)*.25,r:Math.random()*1.5+.4,c:Math.random()>.65?'c':'b'});
+let ct=0;
+(function bgloop(){
+  const W=bgc.width,H=bgc.height;if(!W)return;
+  bctx.clearRect(0,0,W,H);ct+=.006;
+  const g=bctx.createRadialGradient(W*.35,H*.4,0,W*.5,H*.5,Math.max(W,H)*.85);
+  g.addColorStop(0,'rgba(8,28,90,.1)');g.addColorStop(1,'transparent');
+  bctx.fillStyle=g;bctx.fillRect(0,0,W,H);
+  const mg=bctx.createRadialGradient(mx,my,0,mx,my,170);
+  mg.addColorStop(0,'rgba(27,111,235,.04)');mg.addColorStop(1,'transparent');
+  bctx.fillStyle=mg;bctx.fillRect(0,0,W,H);
+  for(let i=0;i<7;i++){const h=(Math.sin(ct+i*.65+1)+1)*.5*(H*.22)+8;const sx=W*.57+i*60;bctx.fillStyle='rgba(27,111,235,'+(0.028+i*.003)+')';bctx.fillRect(sx,H*.72-h,38,h);bctx.fillStyle='rgba(0,212,255,'+(0.02+i*.002)+')';bctx.fillRect(sx,H*.72-h,38,2);}
+  nodes.forEach(n=>{n.x+=n.vx;n.y+=n.vy;if(n.x<0||n.x>W)n.vx*=-1;if(n.y<0||n.y>H)n.vy*=-1});
+  for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){const dx=nodes[i].x-nodes[j].x,dy=nodes[i].y-nodes[j].y,d=Math.hypot(dx,dy);if(d<110){bctx.beginPath();bctx.strokeStyle='rgba(27,111,235,'+(0.08*(1-d/110))+')';bctx.lineWidth=.5;bctx.moveTo(nodes[i].x,nodes[i].y);bctx.lineTo(nodes[j].x,nodes[j].y);bctx.stroke()}}
+  nodes.forEach(n=>{bctx.beginPath();bctx.arc(n.x,n.y,n.r,0,Math.PI*2);bctx.fillStyle=n.c==='c'?'rgba(0,212,255,.34)':'rgba(74,144,245,.3)';bctx.fill()});
+  requestAnimationFrame(bgloop);
+})();
+// FLOATERS — European flags + FMCG products
+const flt=document.getElementById('flt');
+
+// ALL European country flags
+const FLAGS = [
+  '🇬🇧','🇮🇪','🇫🇷','🇮🇹','🇩🇪','🇪🇸','🇳🇱','🇧🇪','🇵🇹','🇦🇹',
+  '🇸🇪','🇩🇰','🇫🇮','🇵🇱','🇷🇴','🇨🇿','🇭🇺','🇬🇷','🇧🇬','🇭🇷',
+  '🇸🇰','🇸🇮','🇱🇹','🇱🇻','🇪🇪','🇱🇺','🇲🇹','🇨🇾','🇨🇭','🇳🇴',
+  '🇮🇸','🇱🇮','🇲🇨','🇸🇲','🇦🇩','🇷🇸','🇺🇦','🇲🇰','🇦🇱','🇽🇰'
+];
+
+// FMCG products
+const PRODUCTS = [
+  '🧴','🍫','🥤','🍪','🧀','🥛','☕','🍬','🧼','🍺',
+  '🍞','🫙','🧃','🛒','🍵','🥩','💊','🧹','🫧','🧻'
+];
+
+// Spawn flags — larger, slower, more prominent
+FLAGS.forEach((flag, i) => {
+  const el = document.createElement('div');
+  el.className = 'ff';
+  el.textContent = flag;
+  // Vary sizes: mix of small, medium, large
+  const sizes = [1.4, 1.8, 2.2, 2.6, 1.6];
+  const fs = sizes[i % sizes.length] + Math.random() * 0.4;
+  const d  = 18 + Math.random() * 14;   // 18-32s duration
+  const dl = Math.random() * 35;         // stagger start times
+  const lx = (i / FLAGS.length * 96) + Math.random() * 2; // spread evenly
+  el.style.cssText = '--d:'+d+'s;--dl:'+dl+'s;--fs:'+fs+'rem;--lx:'+lx+'%';
+  flt.appendChild(el);
+});
+
+// Spawn products — graphical pill cards with emoji + label
+const PRODUCT_CARDS = [
+  {e:'🧴', l:'Shampoo'},     {e:'🍫', l:'Chocolate'},   {e:'🥤', l:'Beverage'},
+  {e:'🍪', l:'Biscuits'},    {e:'🧀', l:'Dairy'},        {e:'🥛', l:'Milk'},
+  {e:'☕', l:'Coffee'},      {e:'🍬', l:'Confectionery'},{e:'🧼', l:'Soap'},
+  {e:'🍺', l:'Lager'},       {e:'🍞', l:'Bread'},        {e:'🫙', l:'Spreads'},
+  {e:'🧃', l:'Juice'},       {e:'💊', l:'Health'},       {e:'🍵', l:'Tea'},
+  {e:'🥩', l:'Meat'},        {e:'🧹', l:'Household'},    {e:'🫧', l:'Detergent'},
+  {e:'🧻', l:'Paper'},       {e:'🛒', l:'Grocery'},      {e:'🥗', l:'Salad'},
+  {e:'🍯', l:'Honey'},       {e:'🧂', l:'Condiments'},   {e:'🫐', l:'Berries'}
+];
+// Only show 14 at a time — spread evenly, not cluttered
+const picked = PRODUCT_CARDS.sort(()=>Math.random()-.5).slice(0,14);
+picked.forEach((prod, i) => {
+  const el  = document.createElement('div');
+  el.className = 'fp';
+  el.innerHTML = '<span class="pe">'+prod.e+'</span><span class="pl">'+prod.l+'</span>';
+  const d  = 22 + Math.random() * 12;   // slow: 22-34s
+  const dl = (i / picked.length) * 40 + Math.random() * 5; // evenly staggered
+  const lx = (i / picked.length * 88) + Math.random() * 4;
+  el.style.cssText = '--d:'+d+'s;--dl:'+dl+'s;--lx:'+lx+'%';
+  flt.appendChild(el);
+});
+// TICKER
+const tdta=[{l:'🇬🇧 UK FMCG',v:'£8.2B',c:'+2.4%',u:1},{l:'🇮🇪 Ireland',v:'€3.1B',c:'+1.8%',u:1},{l:'🇫🇷 France',v:'€22.4B',c:'-0.6%',u:0},{l:'🇮🇹 Italy',v:'€18.7B',c:'+3.1%',u:1},{l:'🧴 EU Shampoo',v:'€4.8B',c:'+3.9%',u:1},{l:'🍫 Confectionery',v:'€8.3B',c:'+1.7%',u:1},{l:'🥤 Beverages UK',v:'£4.8B',c:'-0.3%',u:0},{l:'🛒 NIQ Today',v:'4.2M+',c:'Live',u:1}];
+const tkr=document.getElementById('ticker');
+[...tdta,...tdta].forEach(d=>{const div=document.createElement('div');div.className='ti';div.innerHTML='<span>'+d.l+'</span><b>'+d.v+'</b><span class="'+(d.u?'up':'dn')+'">'+d.c+'</span>';tkr.appendChild(div);});
+
+// ═══════════════════════════════════════════════════════
+//  FILE HANDLING
+// ═══════════════════════════════════════════════════════
+let dataRows=[], dataHeaders=[], instRules=[], lastResults=[];
+function fmt(b){return b>1048576?(b/1048576).toFixed(1)+'MB':(b/1024).toFixed(0)+'KB'}
+
+function loadData(inp){
+  const f=inp.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      dataRows=XLSX.utils.sheet_to_json(ws,{defval:''});
+      dataHeaders=dataRows.length?Object.keys(dataRows[0]):[];
+      document.getElementById('dfn').textContent=f.name;
+      document.getElementById('dfs').textContent=fmt(f.size);
+      document.getElementById('dbadge').style.display='flex';
+      addSys('📂 <strong>'+f.name+'</strong> — <strong>'+dataRows.length+' rows</strong>, <strong>'+dataHeaders.length+' columns</strong>: '+dataHeaders.join(', '));
+    }catch(err){addErr('❌ Could not read data file: '+err.message)}
+  };
+  r.readAsArrayBuffer(f);
+}
+
+function loadInst(inp){
+  const f=inp.files[0];if(!f)return;
+  const done=txt=>{
+    instRules=parseInstructions(txt);
+    document.getElementById('ifn').textContent=f.name;
+    document.getElementById('ifs').textContent=fmt(f.size);
+    document.getElementById('ibadge').style.display='flex';
+    addSys('📋 <strong>'+f.name+'</strong> — <strong>'+instRules.length+' rules</strong> loaded: '+instRules.map(r=>r.column).join(', '));
+  };
+  if(f.name.endsWith('.txt')){
+    const r=new FileReader();r.onload=e=>done(e.target.result);r.readAsText(f);
+  } else {
+    const r=new FileReader();
+    r.onload=e=>{
+      try{
+        const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        // Read as array of arrays to support both column A|B format and CSV
+        const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+        const rules=[];
+        aoa.forEach(row=>{
+          if(!row||row.length<2)return;
+          const col=String(row[0]||'').trim();
+          const rule=String(row[1]||'').trim();
+          if(col&&rule&&col.toLowerCase()!=='column'&&col.toLowerCase()!=='field'){
+            rules.push({column:col,rule:rule});
+          }
+        });
+        if(rules.length>0){
+          instRules=rules;
+          document.getElementById('ifn').textContent=f.name;
+          document.getElementById('ifs').textContent=fmt(f.size);
+          document.getElementById('ibadge').style.display='flex';
+          addSys('📋 <strong>'+f.name+'</strong> — <strong>'+instRules.length+' rules</strong> loaded: '+instRules.map(r=>r.column).join(', '));
+        } else {
+          // Try as CSV fallback
+          done(XLSX.utils.sheet_to_csv(ws));
+        }
+      }catch(err){addErr('❌ Could not read instruction file: '+err.message)}
+    };
+    r.readAsArrayBuffer(f);
+  }
+}
+
+// Parse plain text instructions  — supports:
+// "ColumnName | rule"  or  "ColumnName: rule"  or  "ColumnName - rule"
+function parseInstructions(txt){
+  const rules=[];
+  txt.split('\n').forEach(line=>{
+    line=line.trim();
+    if(!line||line.startsWith('#'))return;
+    let col='',rule='';
+    if(line.includes('|')){[col,rule]=line.split('|').map(s=>s.trim());}
+    else if(line.includes(':')){const idx=line.indexOf(':');col=line.slice(0,idx).trim();rule=line.slice(idx+1).trim();}
+    else if(line.includes(' - ')){const idx=line.indexOf(' - ');col=line.slice(0,idx).trim();rule=line.slice(idx+3).trim();}
+    if(col&&rule)rules.push({column:col,rule:rule});
+  });
+  return rules;
+}
+
+function dropF(e,id){
+  e.preventDefault();const inp=document.getElementById(id);
+  if(e.dataTransfer.files.length){const dt=new DataTransfer();dt.items.add(e.dataTransfer.files[0]);inp.files=dt.files;inp.dispatchEvent(new Event('change'));}
+}
+
+// ═══════════════════════════════════════════════════════
+//  UI HELPERS
+// ═══════════════════════════════════════════════════════
+function hideWlc(){const w=document.getElementById('wlc');if(w)w.remove()}
+function addSys(html){hideWlc();const v=document.getElementById('mainview');const d=document.createElement('div');d.className='sysmsg';d.innerHTML=html;v.appendChild(d);v.scrollTop=v.scrollHeight}
+function addErr(html){hideWlc();const v=document.getElementById('mainview');const d=document.createElement('div');d.className='errmsg';d.innerHTML=html;v.appendChild(d);v.scrollTop=v.scrollHeight}
+
+// ═══════════════════════════════════════════════════════
+//  RULE-BASED VALIDATION ENGINE  — STRICT ITEM DESCRIPTION CROSS-CHECK
+// ═══════════════════════════════════════════════════════
+
+// ── STEP 1: Parse Item Description into structured product info ──────────────
+function parseDesc(rawDesc) {
+  const desc  = String(rawDesc || '');
+  const descL = desc.toLowerCase();
+  const info  = {
+    raw       : desc,
+    rawLower  : descL,
+    weights   : [],      // all weight/volume mentions e.g. ["200g","500ml"]
+    brands    : [],      // possible brand tokens
+    flavours  : [],      // all flavour mentions
+    variants  : [],      // variant mentions
+    categories: [],      // product type words
+    countries : [],      // country mentions
+    barcodes  : [],      // numeric sequences 8-13 digits
+    numbers   : []       // all standalone numbers
+  };
+
+  // ── WEIGHTS: every occurrence of number+unit ──
+  const weightRx = /(\d+(?:\.\d+)?)\s*(g|kg|ml|l|oz|lb|cl|fl\.?\s*oz)\b/gi;
+  let wm;
+  while((wm = weightRx.exec(desc)) !== null) {
+    info.weights.push(wm[0].replace(/\s+/g, '').toLowerCase());
+  }
+
+  // ── FLAVOURS: comprehensive list ──
+  const FLAVOURS = [
+    'original','plain','unflavoured','natural',
+    'mint','spearmint','peppermint',
+    'berry','strawberry','blueberry','raspberry','blackberry','blackcurrant','redcurrant','cranberry',
+    'lemon','lime','citrus','orange','grapefruit','mandarin','tangerine',
+    'vanilla','chocolate','caramel','toffee','butterscotch','fudge',
+    'apple','pear','peach','mango','passion fruit','passionfruit','pineapple','watermelon',
+    'cherry','grape','fig','date','apricot',
+    'coconut','almond','hazelnut','walnut','peanut','pistachio',
+    'coffee','espresso','mocha','matcha','green tea','chai',
+    'honey','maple','syrup','cinnamon','ginger','spice',
+    'salted','sea salt','smoky','smoked','barbecue','bbq','chilli','chili','pepper',
+    'cheese','cream cheese','sour cream','yogurt','yoghurt',
+    'rose','lavender','elderflower'
+  ];
+  FLAVOURS.forEach(fl => {
+    if(descL.includes(fl)) info.flavours.push(fl);
+  });
+
+  // ── VARIANTS: pack type, format, form ──
+  const VARIANTS = [
+    'shampoo','conditioner','shower gel','body wash','moisturiser','moisturizer',
+    'lotion','cream','gel','foam','serum','oil','spray','wipes','pads',
+    'tablet','capsule','sachet','powder','liquid','solid','bar','stick',
+    '2-in-1','3-in-1','duo','twin','multipack','pack of',
+    'regular','classic','standard','premium','pro','professional','expert','advanced',
+    'sensitive','gentle','mild','intense','extra','super','ultra',
+    'original','new formula','improved','refill','travel size','mini','family size',
+    'for men','for women','for kids','for babies','for dry','for oily','for normal',
+    'anti-dandruff','volumising','volumizing','strengthening','nourishing','hydrating',
+    'moisturising','moisturizing','repairing','smoothing','curl','straight'
+  ];
+  VARIANTS.forEach(v => {
+    if(descL.includes(v)) info.variants.push(v);
+  });
+
+  // ── CATEGORIES ──
+  const CATS = [
+    'shampoo','conditioner','soap','deodorant','toothpaste','mouthwash',
+    'chocolate','biscuit','crisp','snack','sweet','candy','cereal','bread',
+    'milk','cheese','yogurt','butter','cream','juice','water','cola','soda',
+    'coffee','tea','wine','beer','spirit',
+    'detergent','cleaner','bleach','fabric conditioner','air freshener',
+    'supplement','vitamin','protein'
+  ];
+  CATS.forEach(cat => {
+    if(descL.includes(cat)) info.categories.push(cat);
+  });
+
+  // ── COUNTRIES ──
+  const COUNTRIES = {
+    'united kingdom':'UK','uk':'UK','england':'UK','scotland':'UK','wales':'UK','northern ireland':'UK',
+    'ireland':'Ireland','republic of ireland':'Ireland',
+    'france':'France','germany':'Germany','italy':'Italy','spain':'Spain',
+    'netherlands':'Netherlands','belgium':'Belgium','portugal':'Portugal',
+    'austria':'Austria','sweden':'Sweden','denmark':'Denmark',
+    'finland':'Finland','poland':'Poland','greece':'Greece',
+    'switzerland':'Switzerland','norway':'Norway','czechia':'Czech Republic',
+    'czech republic':'Czech Republic','hungary':'Hungary','romania':'Romania'
+  };
+  Object.entries(COUNTRIES).forEach(([key, val]) => {
+    if(descL.includes(key)) info.countries.push(val);
+  });
+
+  // ── BARCODES: 8-13 digit sequences ──
+  const barcodeRx = /\b(\d{8,13})\b/g;
+  let bm;
+  while((bm = barcodeRx.exec(desc)) !== null) info.barcodes.push(bm[1]);
+
+  // ── BRAND: first 1-3 capitalised words at start of description ──
+  const brandRx = /^([A-Z][A-Za-z&'.\-]+(?:\s+[A-Z][A-Za-z&'.\-]+){0,2})/;
+  const brm = desc.match(brandRx);
+  if(brm) info.brands.push(brm[1].trim());
+  // Also look for known brand patterns mid-string
+  const brandRx2 = /\b(by\s+([A-Z][A-Za-z]+))/g;
+  let bm2;
+  while((bm2 = brandRx2.exec(desc)) !== null) info.brands.push(bm2[2]);
+
+  // ── ALL NUMBERS ──
+  const numRx = /\b(\d+(?:\.\d+)?)\b/g;
+  let nm;
+  while((nm = numRx.exec(desc)) !== null) info.numbers.push(nm[1]);
+
+  return info;
+}
+
+// ── STEP 2: Core rule checker — compares cell value against rule AND description ──
+function checkRule(colName, cellValue, ruleText, descInfo, strict, flagEmpty) {
+  const v    = String(cellValue === null || cellValue === undefined ? '' : cellValue).trim();
+  const vl   = v.toLowerCase();
+  const r    = ruleText.toLowerCase().trim();
+  const col  = colName.toLowerCase().trim();
+
+  let pass     = true;
+  let issue    = '';
+  let proposed = '';
+
+  // ── SKIP ITEM DESCRIPTION — it is the reference, never the target ──────────
+  // If this column IS the item description, skip all validation on it
+  const isDescCol = col.includes('item desc') || col.includes('item_desc') ||
+                    col === 'description' || col === 'product description' ||
+                    col === 'item description' || col === 'prod desc';
+  if(isDescCol) {
+    return { pass: true, issue: '', proposed: '' };
+  }
+
+  // ── EMPTY CHECK (always first) ────────────────────────────────────────────
+  const isEmpty = (v === '' || v === '-' || v === 'n/a' || v === 'na' || v === 'none' || v === 'null');
+  if(isEmpty) {
+    // Blank/empty values are never flagged as errors — skip validation for this field
+    return { pass: true, issue: '', proposed: '' };
+  }
+
+  // ════════════════════════════════════════════════════════
+  //  DESCRIPTION CROSS-CHECK — the core of strict validation
+  //  For each column type, extract the expected value FROM
+  //  the Item Description and compare against the cell value
+  // ════════════════════════════════════════════════════════
+
+  const hasDesc = descInfo.raw && descInfo.raw.length > 5;
+
+  // ── WEIGHT / VOLUME ───────────────────────────────────────────────────────
+  if(col.includes('weight') || col.includes('volume') || col.includes('net content') ||
+     col.includes('size') || col.includes('pack size')) {
+
+    // Normalise cell value
+    const normV = vl.replace(/\s+/g, '');
+    const unitMatch = v.match(/(\d+(?:\.\d+)?)\s*(g|kg|ml|l|oz|lb|cl)\b/i);
+
+    // Rule: must have a unit
+    if(!unitMatch) {
+      pass     = false;
+      issue    = colName + ': "' + v + '" is missing a unit (e.g. 200g, 500ml, 1.5kg)';
+      proposed = descInfo.weights.length > 0 ? descInfo.weights[0] : v + 'g';
+    }
+
+    // Cross-check: does the weight match what is in the Item Description?
+    if(pass && hasDesc && descInfo.weights.length > 0) {
+      const cellWeight  = normV;
+      const descWeights = descInfo.weights.map(w => w.replace(/\s+/g,'').toLowerCase());
+      const match       = descWeights.some(dw => dw === cellWeight ||
+                           dw.replace(/\s/g,'') === cellWeight.replace(/\s/g,''));
+      if(!match) {
+        pass     = false;
+        issue    = colName + ': "' + v + '" does not match Item Description weight "' +
+                   descInfo.weights.join(' / ') + '"';
+        proposed = descInfo.weights[0];
+      }
+    }
+  }
+
+  // ── FLAVOUR ────────────────────────────────────────────────────────────────
+  else if(col.includes('flavour') || col.includes('flavor') || col.includes('taste') ||
+          col.includes('scent') || col.includes('fragrance') || col.includes('variety')) {
+
+    // Check allowed list from rule
+    const ofMatch = r.match(/(?:must be )?one of[:\s]+(.+)/i) ||
+                    r.match(/allowed[:\s]+(.+)/i) ||
+                    r.match(/values?[:\s]+(.+)/i);
+
+    if(ofMatch) {
+      const allowed = ofMatch[1].split(/[,;\/]/).map(s => s.trim().toLowerCase()).filter(Boolean);
+      if(!allowed.includes(vl)) {
+        pass     = false;
+        issue    = colName + ': "' + v + '" is not in allowed list (' + allowed.join(', ') + ')';
+        // Check description for best match
+        const descMatch = allowed.find(a => descInfo.flavours.includes(a) || descInfo.rawLower.includes(a));
+        proposed = descMatch ? descMatch : allowed[0];
+      }
+    }
+
+    // Cross-check against Item Description flavours
+    if(pass && hasDesc && descInfo.flavours.length > 0) {
+      const cellFlavL = vl;
+      const descMatch = descInfo.flavours.some(fl =>
+        cellFlavL.includes(fl) || fl.includes(cellFlavL) || cellFlavL === fl
+      );
+      if(!descMatch) {
+        pass     = false;
+        issue    = colName + ': "' + v + '" — Item Description suggests flavour is "' +
+                   descInfo.flavours[0] + '" but cell says "' + v + '"';
+        proposed = descInfo.flavours[0];
+      }
+    } else if(pass && hasDesc && descInfo.flavours.length === 0 && strict) {
+      // Description exists but no flavour found in it
+      if(!descInfo.rawLower.includes(vl)) {
+        pass     = false;
+        issue    = colName + ': "' + v + '" not found anywhere in Item Description "' +
+                   descInfo.raw.slice(0, 80) + '..."';
+        proposed = 'Check Item Description for correct flavour';
+      }
+    }
+  }
+
+  // ── BRAND / MANUFACTURER ──────────────────────────────────────────────────
+  else if(col.includes('brand') || col.includes('manufacturer') || col.includes('maker')) {
+
+    if(isEmpty && flagEmpty) {
+      return { pass: false, issue: colName + ' is empty', proposed: descInfo.brands[0] || 'Fill in brand' };
+    }
+
+    // Cross-check: brand should appear in Item Description
+    if(hasDesc && v.length > 1) {
+      const brandInDesc = descInfo.rawLower.includes(vl) ||
+                          descInfo.brands.some(b => b.toLowerCase().includes(vl) || vl.includes(b.toLowerCase()));
+      if(!brandInDesc && strict) {
+        pass     = false;
+        issue    = colName + ': "' + v + '" not found in Item Description "' +
+                   descInfo.raw.slice(0, 80) + '..."';
+        proposed = descInfo.brands[0] || 'Verify brand from product packaging';
+      }
+    }
+  }
+
+  // ── VARIANT / FORMAT ──────────────────────────────────────────────────────
+  else if(col.includes('variant') || col.includes('format') || col.includes('form') ||
+          col.includes('type') || col.includes('sub-category') || col.includes('sub category')) {
+
+    const ofMatch = r.match(/(?:must be )?one of[:\s]+(.+)/i) ||
+                    r.match(/allowed[:\s]+(.+)/i);
+    if(ofMatch) {
+      const allowed = ofMatch[1].split(/[,;\/]/).map(s => s.trim().toLowerCase()).filter(Boolean);
+      if(!allowed.includes(vl)) {
+        pass     = false;
+        issue    = colName + ': "' + v + '" is not in allowed list (' + allowed.join(', ') + ')';
+        const descMatch = allowed.find(a => descInfo.rawLower.includes(a));
+        proposed = descMatch || allowed[0];
+      }
+    }
+
+    // Cross-check variant against description
+    if(pass && hasDesc && v.length > 1) {
+      if(!descInfo.rawLower.includes(vl) && strict) {
+        pass     = false;
+        issue    = colName + ': "' + v + '" not found in Item Description';
+        const dv = descInfo.variants.length > 0 ? descInfo.variants[0] : '';
+        proposed = dv || 'Check Item Description for correct variant';
+      }
+    }
+  }
+
+  // ── CATEGORY / SUB-CATEGORY ───────────────────────────────────────────────
+  else if(col.includes('category') || col.includes('segment') || col.includes('department')) {
+
+    const ofMatch = r.match(/(?:must be )?one of[:\s]+(.+)/i) ||
+                    r.match(/allowed[:\s]+(.+)/i);
+    if(ofMatch) {
+      const allowed = ofMatch[1].split(/[,;\/]/).map(s => s.trim().toLowerCase()).filter(Boolean);
+      if(!allowed.some(a => vl.includes(a) || a.includes(vl))) {
+        pass     = false;
+        issue    = colName + ': "' + v + '" is not in allowed categories (' + allowed.join(', ') + ')';
+        const descCat = allowed.find(a => descInfo.rawLower.includes(a));
+        proposed = descCat || allowed[0];
+      }
+    }
+
+    if(pass && hasDesc && strict && descInfo.categories.length > 0) {
+      const catInDesc = descInfo.categories.some(cat => vl.includes(cat) || cat.includes(vl));
+      if(!catInDesc) {
+        pass     = false;
+        issue    = colName + ': "' + v + '" does not match category suggested by Item Description ("' +
+                   descInfo.categories[0] + '")';
+        proposed = descInfo.categories[0];
+      }
+    }
+  }
+
+  // ── COUNTRY OF ORIGIN ─────────────────────────────────────────────────────
+  else if(col.includes('country') || r.includes('country')) {
+    const VALID_COUNTRIES = [
+      'united kingdom','uk','england','scotland','wales','ireland','france','germany',
+      'italy','spain','netherlands','belgium','portugal','austria','sweden','denmark',
+      'finland','poland','greece','switzerland','norway','czech republic','czechia',
+      'hungary','romania','bulgaria','croatia','slovakia','slovenia','luxembourg',
+      'malta','cyprus','estonia','latvia','lithuania'
+    ];
+    const matched = VALID_COUNTRIES.some(c => vl.includes(c) || c.includes(vl));
+    if(!matched) {
+      pass     = false;
+      issue    = colName + ': "' + v + '" is not a recognised EU/UK country name';
+      proposed = descInfo.countries.length > 0 ? descInfo.countries[0] : 'United Kingdom';
+    }
+    // Cross-check country against description
+    if(pass && hasDesc && descInfo.countries.length > 0) {
+      const countryMatch = descInfo.countries.some(c =>
+        vl.includes(c.toLowerCase()) || c.toLowerCase().includes(vl)
+      );
+      if(!countryMatch && strict) {
+        pass     = false;
+        issue    = colName + ': "' + v + '" — Item Description indicates country is "' +
+                   descInfo.countries[0] + '"';
+        proposed = descInfo.countries[0];
+      }
+    }
+  }
+
+  // ── BARCODE / EAN / UPC ───────────────────────────────────────────────────
+  else if(col.includes('barcode') || col.includes('ean') || col.includes('upc') ||
+          col.includes('gtin') || r.includes('barcode') || r.includes('ean') || r.includes('digit')) {
+    const digits = v.replace(/\D/g, '');
+    const req13  = r.includes('13');
+    const req12  = r.includes('12');
+    const req8   = r.includes('8');
+    if(req13 && digits.length !== 13) {
+      pass     = false;
+      issue    = colName + ': "' + v + '" must be exactly 13 digits (EAN-13). Found ' + digits.length + ' digits.';
+      proposed = digits.length > 0 ? digits.padEnd(13, '0') : 'Enter valid 13-digit EAN barcode';
+    } else if(req12 && digits.length !== 12) {
+      pass     = false;
+      issue    = colName + ': "' + v + '" must be exactly 12 digits (UPC). Found ' + digits.length + ' digits.';
+      proposed = 'Enter valid 12-digit UPC barcode';
+    } else if(!req13 && !req12 && digits.length < 8) {
+      pass     = false;
+      issue    = colName + ': "' + v + '" has only ' + digits.length + ' digits — barcode seems too short';
+      proposed = 'Check barcode on product packaging';
+    } else if(v !== digits && strict) {
+      pass     = false;
+      issue    = colName + ': "' + v + '" contains non-numeric characters — barcode must be digits only';
+      proposed = digits;
+    }
+  }
+
+  // ── PRODUCT NAME — uses generic rules below (not the item description cross-check) ──
+  else if(col.includes('product name') || col.includes('item name')) {
+    const minLen = (r.match(/min(?:imum)?\s+(\d+)/i) || [])[1];
+    const maxLen = (r.match(/max(?:imum)?\s+(\d+)/i) || [])[1];
+    if(minLen && v.length < parseInt(minLen)) {
+      pass     = false;
+      issue    = colName + ': too short (' + v.length + ' chars). Minimum is ' + minLen + ' characters.';
+      proposed = 'Expand to at least ' + minLen + ' characters';
+    }
+    if(maxLen && v.length > parseInt(maxLen)) {
+      pass     = false;
+      issue    = colName + ': too long (' + v.length + ' chars). Maximum is ' + maxLen + ' characters.';
+      proposed = v.slice(0, parseInt(maxLen));
+    }
+  }
+
+  // ── GENERIC: MUST BE ONE OF (any other column) ─────────────────────────────
+  else {
+    const ofMatch = r.match(/(?:must be )?one of[:\s]+(.+)/i) ||
+                    r.match(/allowed values?[:\s]+(.+)/i) ||
+                    r.match(/values?[:\s]+(.+)/i);
+    if(ofMatch) {
+      const allowed = ofMatch[1].split(/[,;\/]/).map(s => s.trim().toLowerCase()).filter(Boolean);
+      if(!allowed.some(a => vl === a || vl.includes(a) || a.includes(vl))) {
+        pass     = false;
+        issue    = colName + ': "' + v + '" is not allowed. Allowed values: ' + allowed.join(', ');
+        const descMatch = allowed.find(a => descInfo.rawLower.includes(a));
+        proposed = descMatch || allowed[0];
+      }
+    }
+
+    // GENERIC: must not be empty
+    if(pass && (r.includes('must not be empty') || r.includes('required') || r.includes('mandatory'))) {
+      if(isEmpty) {
+        pass     = false;
+        issue    = colName + ' is required — cannot be empty';
+        proposed = 'Fill in ' + colName;
+      }
+    }
+
+    // GENERIC: numeric only
+    if(pass && (r.includes('numeric') || r.includes('number only') || r.includes('integer'))) {
+      if(!/^\d+(\.\d+)?$/.test(v)) {
+        pass     = false;
+        issue    = colName + ': "' + v + '" must be a number only';
+        const num = v.match(/\d+/);
+        proposed = num ? num[0] : 'Enter a valid number';
+      }
+    }
+
+    // GENERIC: min/max length
+    const minL = (r.match(/min(?:imum)?\s+(\d+)\s+char/i) || r.match(/at least\s+(\d+)\s+char/i) || [])[1];
+    const maxL = (r.match(/max(?:imum)?\s+(\d+)\s+char/i) || r.match(/no more than\s+(\d+)\s+char/i) || [])[1];
+    if(minL && v.length < parseInt(minL)) {
+      pass     = false;
+      issue    = colName + ': "' + v + '" too short (' + v.length + ' chars). Min: ' + minL;
+      proposed = 'Add more detail (min ' + minL + ' characters)';
+    }
+    if(maxL && v.length > parseInt(maxL)) {
+      pass     = false;
+      issue    = colName + ': "' + v + '" too long (' + v.length + ' chars). Max: ' + maxL;
+      proposed = v.slice(0, parseInt(maxL));
+    }
+
+    // GENERIC: must contain
+    const containM = r.match(/must contain[:\s]+["']?([^"']+)["']?/i);
+    if(containM && !vl.includes(containM[1].trim().toLowerCase())) {
+      pass     = false;
+      issue    = colName + ': "' + v + '" must contain "' + containM[1].trim() + '"';
+      proposed = v + ' ' + containM[1].trim();
+    }
+
+    // Note: generic columns are only validated against their rule definition.
+    // Cross-checking against Item Description is only done for specific column types
+    // (weight, flavour, brand, variant, category, country) — not all columns.
+  }
+
+  // ── BRITISH ENGLISH SPELLING ───────────────────────────────────────────────
+  if(pass && (r.includes('british') || r.includes('uk spelling') || r.includes('british english'))) {
+    const amBr = {flavor:'flavour',color:'colour',center:'centre',liter:'litre',
+      meter:'metre',aluminum:'aluminium',analyze:'analyse',recognize:'recognise',
+      organize:'organise',fiber:'fibre',theater:'theatre'};
+    for(const [am, br] of Object.entries(amBr)) {
+      if(vl.includes(am)) {
+        pass     = false;
+        issue    = colName + ': "' + v + '" uses American spelling "' + am + '" — use "' + br + '"';
+        proposed = v.replace(new RegExp(am, 'gi'), br);
+        break;
+      }
+    }
+  }
+
+  return { pass, issue, proposed };
+}
+
+
+// ═══════════════════════════════════════════════════════
+//  MAIN VALIDATION RUNNER
+// ═══════════════════════════════════════════════════════
+// Find the Item Description column in the data headers
+function getDescField(){
+  const name = (document.getElementById('descfield')||{value:'Item Description'}).value.trim().toLowerCase();
+  return dataHeaders.find(h=>h.toLowerCase()===name)
+    || dataHeaders.find(h=>h.toLowerCase().includes('item desc'))
+    || dataHeaders.find(h=>h.toLowerCase().includes('description'))
+    || dataHeaders.find(h=>h.toLowerCase().includes('desc'))
+    || null;
+}
+
+function runVal(){
+  // Only require data file — instructions are optional
+  if(!dataRows.length){
+    addErr('📂 Please upload your data file first.');
+    return;
+  }
+
+  // Build active rules: instruction file + any extra rules typed (both optional)
+  const extraRulesText = (document.getElementById('extrarules')||{value:''}).value.trim();
+  const activeRules = [...instRules];
+  if(extraRulesText){
+    parseInstructions(extraRulesText).forEach(er=>{
+      if(!activeRules.find(r=>r.column.toLowerCase()===er.column.toLowerCase())){
+        activeRules.push(er);
+      }
+    });
+  }
+  // activeRules may be empty — that is fine, engine will just check empty fields
+
+  const strict  =document.getElementById('tstrict').classList.contains('on');
+  const useDesc =document.getElementById('tdesc').classList.contains('on');
+  const flagEmpty = false; // Empty fields are never errors
+  const descField=getDescField();
+
+  const btn=document.getElementById('runbtn');
+  btn.disabled=true;btn.innerHTML='<div class="shim"></div>⏳ Validating…';
+
+  hideWlc();
+  const view=document.getElementById('mainview');
+
+  // Add progress
+  const pd=document.createElement('div');pd.className='pw';pd.id='pw';
+  const steps=['Reading','Validating','Building Output'];
+  pd.innerHTML='<div class="pt">⚡ NIQ Rule-Based Validation Engine<span class="rc" id="rc">0 / '+dataRows.length+' rows</span></div>'
+    +'<div class="ptrk"><div class="pfill" id="pf" style="width:0%"></div></div>'
+    +'<div class="psteps">'+steps.map(st=>'<div class="ps" id="ps'+st.replace(/\s/g,'')+'">'+st+'</div>').join('')+'</div>';
+  view.appendChild(pd);view.scrollTop=view.scrollHeight;
+
+  function prog(pct,step,rc){
+    const el=document.getElementById('pf');if(el)el.style.width=pct+'%';
+    const r=document.getElementById('rc');if(r&&rc)r.textContent=rc;
+    steps.forEach(st=>{const e=document.getElementById('ps'+st.replace(/\s/g,''));if(!e)return;
+      if(st===step)e.classList.add('act');
+      else if(steps.indexOf(st)<steps.indexOf(step)){e.classList.remove('act');e.classList.add('done');}});
+  }
+
+  // Use setTimeout to allow UI to paint before heavy work
+  setTimeout(()=>{
+    prog(10,'Reading','Reading data…');
+
+    // Map rules by column name (case-insensitive)
+    const ruleMap={};
+    activeRules.forEach(r=>{ruleMap[r.column.toLowerCase()]=r;});
+
+    // Find matching rule for a header (fuzzy match)
+    function findRule(header){
+      const hl=header.toLowerCase();
+      if(ruleMap[hl])return ruleMap[hl];
+      // Try partial match
+      for(const key of Object.keys(ruleMap)){
+        if(hl.includes(key)||key.includes(hl))return ruleMap[key];
+      }
+      return null;
+    }
+
+    prog(20,'Validating','Validating rows…');
+
+    lastResults=[];
+    const total=dataRows.length;
+
+    dataRows.forEach((row,i)=>{
+      // ── Get Item Description value for this row ──────────
+      const descVal = descField ? String(row[descField] || '') : '';
+      // Always parse the description — it is the reference for cross-checks
+      const descInfo = (useDesc && descVal.length > 3)
+        ? parseDesc(descVal)
+        : { raw:'', rawLower:'', weights:[], brands:[], flavours:[], variants:[],
+            categories:[], countries:[], barcodes:[], numbers:[] };
+
+      const fieldChecks  = [];
+      const errors       = [];
+      const erroredFields= [];
+      const proposedList = [];
+
+      dataHeaders.forEach(header => {
+        // Skip Item Description column — it is reference only, never validated
+        const hLow = header.toLowerCase();
+        // Get current value from the descfield input (user may have typed custom name)
+        const userDescField = (document.getElementById('descfield')||{value:''}).value.trim().toLowerCase();
+        const isItemDesc = (descField && header === descField)
+                        || (userDescField && hLow === userDescField)
+                        || hLow.includes('item desc')
+                        || hLow === 'description'
+                        || hLow === 'product description'
+                        || hLow === 'prod desc';
+        if(isItemDesc) {
+          fieldChecks.push({
+            field: header,
+            value: String(row[header]||''),
+            rule: 'Reference field — not validated',
+            pass: true, issue: '', proposed: ''
+          });
+          return; // skip to next header
+        }
+
+        const rule  = findRule(header);
+        const value = row[header];
+        let pass = true, issue = '', proposed = '';
+
+        if(rule) {
+          // Use full strict engine with description cross-check
+          const result = checkRule(header, value, rule.rule, descInfo, strict, flagEmpty);
+          pass     = result.pass;
+          issue    = result.issue;
+          proposed = result.proposed;
+        } else {
+          // No rule defined for this column — pass by default
+          pass = true;
+        }
+
+        fieldChecks.push({
+          field    : header,
+          value    : String(value === null || value === undefined ? '' : value),
+          rule     : rule ? rule.rule : 'No rule defined',
+          pass, issue, proposed
+        });
+
+        if(!pass) {
+          errors.push(issue || header + ': failed validation');
+          erroredFields.push(header);
+          if(proposed) proposedList.push(header + ' → ' + proposed);
+        }
+      });
+
+      const status = errors.length > 0 ? 'ERROR' : 'NO ERROR';
+
+      lastResults.push({
+        ...row,
+        _s     : status,
+        _row   : i + 1,
+        _fc    : fieldChecks,
+        'Validation Status'       : status,
+        'Errored Characteristics' : erroredFields.join(', '),
+        'Proposed Values'         : proposedList.join('; '),
+        'Validation Note'         : errors.length > 0
+          ? 'Errors found: ' + errors.slice(0, 3).join(' | ')
+          : 'Your coding is perfect'
+      });
+
+      if((i + 1) % 50 === 0 || i === total - 1) {
+        const pct = 20 + Math.round(((i + 1) / total) * 65);
+        prog(pct, 'Validating', 'Row ' + (i + 1) + ' / ' + total);
+      }
+    });
+
+    prog(88,'Building Output','Building results…');
+
+    // Remove progress
+    setTimeout(()=>{
+      const pw=document.getElementById('pw');if(pw)pw.remove();
+
+      const errC=lastResults.filter(r=>r._s==='ERROR').length;
+      const okC=lastResults.length-errC;
+      const dH=[...dataHeaders,'Validation Status','Errored Characteristics','Proposed Values','Validation Note'];
+      const errList=lastResults.filter(r=>r._s==='ERROR').slice(0,100);
+
+      const rd=document.createElement('div');rd.className='rw';
+      rd.innerHTML=
+        '<div class="rsums">'
+        +'<div class="rsc tot"><div class="rsn">'+lastResults.length+'</div><div class="rsl">Total Rows</div></div>'
+        +'<div class="rsc ok"><div class="rsn">'+okC+'</div><div class="rsl">✅ Passed</div></div>'
+        +'<div class="rsc er"><div class="rsn">'+errC+'</div><div class="rsl">❌ Errors</div></div>'
+        +'</div>'
+        +(errC>0
+          ?'<div class="ebd"><div class="ebt">❌ Error Breakdown ('+Math.min(errC,100)+' of '+errC+')</div>'
+            +errList.map(r=>
+              '<div class="ebi">'
+              +'<div class="ebr">Row '+r._row+'</div>'
+              +'<div class="ebd2">'
+              +'<div><span class="ebf">'+(r['Errored Characteristics']||'See detail')+'</span></div>'
+              +'<div>'+(Array.isArray(r.errors)&&r.errors.length?r.errors.slice(0,1).join(''):(r['Validation Note']||''))+'</div>'
+              +(r['Proposed Values']?'<div class="ebfx">💡 '+r['Proposed Values'].slice(0,80)+'</div>':'')
+              +'</div>'
+              +'<button class="detbtn" onclick="showDetail('+(r._row-1)+')">🔍 Detail</button>'
+              +'</div>'
+            ).join('')
+            +'</div>'
+          :'')
+        +'<div class="tscr"><table>'
+        +'<thead><tr>'+dH.map(h=>'<th title="'+h+'">'+(h.length>15?h.slice(0,13)+'…':h)+'</th>').join('')+'</tr></thead>'
+        +'<tbody>'+lastResults.map((row,ri)=>
+          '<tr class="'+(row._s==='ERROR'?'erow':'')+'" onclick="showDetail('+ri+')">'
+          +dH.map(h=>{
+            if(h==='Validation Status')return'<td><span class="bdg '+(row._s==='ERROR'?'er':'ok')+'">'+(row._s==='ERROR'?'❌ ERR':'✅ OK')+'</span></td>';
+            if(h==='Validation Note')return'<td style="color:'+(row._s==='ERROR'?'var(--err)':'var(--ok)')+';font-weight:500;white-space:normal;max-width:160px;font-size:.66rem">'+(row[h]||'').slice(0,70)+'</td>';
+            if(h==='Errored Characteristics')return'<td style="color:var(--warn);font-size:.66rem;white-space:normal;max-width:120px">'+(row[h]||'')+'</td>';
+            if(h==='Proposed Values')return'<td style="color:var(--ok);font-size:.65rem;white-space:normal;max-width:140px">'+(row[h]||'').slice(0,50)+'</td>';
+            return'<td title="'+String(row[h]||'').replace(/"/g,'&quot;')+'">'+String(row[h]||'').slice(0,24)+'</td>';
+          }).join('')+'</tr>'
+        ).join('')+'</tbody></table></div>'
+        +'<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px">'
+        +'<button class="btndl" onclick="dlAll()">⬇️ Download Validated .xlsx</button>'
+        +'<button class="btndl blue" onclick="runVal()">🔄 Re-Validate</button>'
+        +(errC>0?'<button class="btndl gray" onclick="dlErrors()">⬇️ Errors Only</button>':'')
+        +'</div>';
+
+      view.appendChild(rd);view.scrollTop=view.scrollHeight;
+
+      const pct=Math.round((okC/lastResults.length)*100);
+      const summary=document.createElement('div');summary.className='sysmsg';
+      summary.innerHTML='✅ <strong>'+lastResults.length+' rows validated</strong> · '+dataHeaders.length+' columns checked per row<br/>'
+        +'📊 Pass rate: <strong>'+pct+'%</strong> · '+okC+' passed · <strong>'+errC+' errors</strong><br/>'
+        +(errC>0
+          ?'❌ Click any red row to see which fields failed and why. Download Excel for full report.'
+          :'🎉 All rows passed — excellent data quality!');
+      view.appendChild(summary);view.scrollTop=view.scrollHeight;
+
+      btn.disabled=false;btn.innerHTML='<div class="shim"></div>⚡ Run Validation';
+    },80);
+  },50);
+}
+
+// dataHeaders is used directly in the validation closure
+
+// ═══════════════════════════════════════════════════════
+//  ROW DETAIL MODAL
+// ═══════════════════════════════════════════════════════
+function showDetail(ri){
+  const row=lastResults[ri];if(!row)return;
+  const fc=row._fc||[];
+  const ex=document.getElementById('rmodal');if(ex)ex.remove();
+  const errFC=fc.filter(f=>!f.pass),okFC=fc.filter(f=>f.pass);
+  const m=document.createElement('div');m.className='mbg';m.id='rmodal';
+  m.onclick=e=>{if(e.target===m)m.remove()};
+  m.innerHTML=
+    '<div class="modal">'
+    +'<div class="mhdr">'
+    +'<div class="mtitle">🔍 Row '+row._row+' — Field Detail '
+    +'<span class="bdg '+(row._s==='ERROR'?'er':'ok')+'" style="margin-left:6px">'+(row._s==='ERROR'?'❌ ERROR':'✅ PASSED')+'</span></div>'
+    +'<button class="mclose" onclick="document.getElementById(\'rmodal\').remove()">✕</button>'
+    +'</div>'
+    // Item Description reference
+    +(row._fc&&row._fc.some(f=>f.field.toLowerCase().includes('desc'))
+      ?'<div style="background:rgba(0,212,255,.05);border:1px solid rgba(0,212,255,.15);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:.7rem;color:#8AADFF;line-height:1.6">'
+        +'📝 <strong>Item Description:</strong> '+String(row[document.getElementById('descfield').value]||row[Object.keys(row).find(k=>k.toLowerCase().includes('desc'))||'']||'Not found').slice(0,200)
+        +'</div>'
+      :'')
+    +(errFC.length?'<div style="font-size:.68rem;color:var(--err);margin-bottom:8px;font-weight:600">❌ '+errFC.length+' field'+(errFC.length!==1?'s':'')+' failed:</div>':'')
+    +errFC.map(fc=>
+      '<div class="fchk er">'
+      +'<div class="fch"><div class="fcn">❌ '+fc.field+'</div><div class="fcv">Value: "'+fc.value+'"</div></div>'
+      +(fc.rule&&fc.rule!=='No rule defined'?'<div class="fcr">📋 Rule: '+fc.rule+'</div>':'')
+      +'<div class="fce">⚠️ '+fc.issue+'</div>'
+      +(fc.proposed?'<div class="fcf">💡 Suggested: <strong>'+fc.proposed+'</strong></div>':'')
+      +'</div>'
+    ).join('')
+    +(okFC.length?'<div style="font-size:.68rem;color:var(--ok);margin:9px 0 7px;font-weight:600">✅ '+okFC.length+' field'+(okFC.length!==1?'s':'')+' passed</div>':'')
+    +okFC.map(fc=>
+      '<div class="fchk ok">'
+      +'<div class="fch"><div class="fcn">✅ '+fc.field+'</div><div class="fcv">Value: "'+fc.value+'"</div></div>'
+      +(fc.rule&&fc.rule!=='No rule defined'?'<div class="fcr" style="font-size:.65rem">📋 '+fc.rule+'</div>':'')
+      +'</div>'
+    ).join('')
+    +'</div>';
+  document.body.appendChild(m);
+}
+
+// ═══════════════════════════════════════════════════════
+//  DOWNLOAD
+// ═══════════════════════════════════════════════════════
+function dlAll(){
+  if(!lastResults.length){addErr('No results yet. Run validation first.');return}
+  exportXL(lastResults,'NIQ_Validated_All');
+}
+function dlErrors(){
+  const errs=lastResults.filter(r=>r._s==='ERROR');
+  if(!errs.length){addSys('No errors found — all rows passed!');return}
+  exportXL(errs,'NIQ_Errors_Only');
+}
+function exportXL(rows,name){
+  const exp=rows.map(({_s,_row,_fc,...r})=>r);
+  const ws=XLSX.utils.json_to_sheet(exp);
+  ws['!cols']=Object.keys(exp[0]||{}).map(c=>({wch:Math.min(Math.max(c.length,10),40)}));
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,name.slice(0,31));
+  XLSX.writeFile(wb,name+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
+}
+</script>
+</body>
+</html>
